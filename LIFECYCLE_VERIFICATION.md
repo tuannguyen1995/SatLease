@@ -1,20 +1,19 @@
 # 🛰️ SatLease On-Chain Lifecycle Verification & Receipts
 
 **Network:** GenLayer StudioNet (Chain ID: `61999` / `0xF1EF`)  
-**Contract Address:** `0x9C9fEFA5dc80839E1430B188A12B309632cE7753`  
+**Contract Address:** `0x23f456b88fC8e7c965d47866771C28C1FF9C7177`  
 **Deployer Address:** `0xF34587A45C397281Ef6BDd839d4A1de2DEe393ad`  
 **Date of Verification:** 2026-10-08
 
 ---
 
-## 1. Deployment Receipt
+## 1. Deployment & Contract Synchronization
 
 | Parameter | Value |
 |---|---|
 | **Contract Name** | SatLease (Orbital Satellite Imaging & Earth Observation SLA Escrow) |
-| **Transaction Hash** | `0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057` |
-| **Receipt Status** | `5` (ACCEPTED / FINALIZED) |
-| **Explorer Link** | [https://explorer-studio.genlayer.com/tx/0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057](https://explorer-studio.genlayer.com/tx/0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057) |
+| **Contract Address** | `0x23f456b88fC8e7c965d47866771C28C1FF9C7177` |
+| **Explorer Link** | [https://explorer-studio.genlayer.com/address/0x23f456b88fC8e7c965d47866771C28C1FF9C7177](https://explorer-studio.genlayer.com/address/0x23f456b88fC8e7c965d47866771C28C1FF9C7177) |
 
 ---
 
@@ -22,7 +21,7 @@
 
 | Action | `create_imaging_task` |
 |---|---|
-| **Transaction Hash** | `0x2caf85d1111c03b6b6bf00ecd3e35489a6209dd21cd47fb03bdb8c092b1c3f35` |
+| **Transaction Hash** | `0xb58cba6837214ed1492ede2c83f0f9a2aa3ac6b01cac911bd15db9a540b29ba3` |
 | **Receipt Status** | `5` (FINALIZED) |
 | **Client Address** | `0xf34587a45c397281ef6bdd839d4a1de2dee393ad` |
 | **Target Bounding Box** | `[36.7783, -119.4179, 37.2000, -119.0000]` (California Central Valley) |
