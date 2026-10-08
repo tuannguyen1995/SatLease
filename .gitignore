@@ -9,3 +9,5 @@ __pycache__/
 artifacts/
 .vercel/
 *.pyc
+
+.vercel
