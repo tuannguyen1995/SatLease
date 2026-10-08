@@ -4,16 +4,6 @@ from dataclasses import dataclass
 import json
 import hashlib
 
-# Compatibility guard: Ensure gl.UserError is available across GenVM and gltest direct environments
-if not hasattr(gl, "UserError"):
-    try:
-        gl.UserError = gl.vm.UserError
-    except Exception:
-        class UserError(Exception):
-            pass
-        gl.UserError = UserError
-
-
 CANARY_TOKEN = "CANARY_SAT_LEASE_ORBITAL_V1"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -115,9 +105,6 @@ class Contract(gl.Contract):
         min_resolution_cm: int,
         duration_blocks: int
     ) -> u64:
-        """
-        Client deposits GEN escrow requesting orbital capture of specific coordinates.
-        """
         self._ensure_owner()
         escrow = bigint(gl.message.value)
         if escrow <= bigint(0):
@@ -173,9 +160,6 @@ class Contract(gl.Contract):
         metadata_url: str,
         sample_preview_url: str
     ) -> None:
-        """
-        Satellite operator accepts the task and uploads raw STAC/GeoTIFF metadata and capture preview.
-        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -204,9 +188,6 @@ class Contract(gl.Contract):
 
     @gl.public.write
     def adjudicate_imaging_sla(self, task_id: u64) -> None:
-        """
-        AI Remote Sensing Tribunal evaluates cloud cover %, GSD resolution, and nadir alignment.
-        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -375,9 +356,6 @@ Respond ONLY with valid JSON without markdown fences:
 
     @gl.public.write.payable
     def appeal_verdict(self, task_id: u64, dispute_reason: str) -> None:
-        """
-        Client or Operator can appeal within 24 blocks cooling-off window with a 10% dispute bond.
-        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -416,9 +394,6 @@ Respond ONLY with valid JSON without markdown fences:
 
     @gl.public.write
     def adjudicate_appeal(self, task_id: u64, supplemental_analysis_url: str) -> None:
-        """
-        Appellate Space Chamber re-evaluates task with ground-truth radar/atmospheric logs.
-        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -508,6 +483,7 @@ Respond ONLY with valid JSON:
         bond_val = t.dispute_bond
         total_settling = escrow_val + bond_val
         t.dispute_bond = bigint(0)
+        t.escrow_amount = bigint(0)  # Double payout protection
 
         self.total_imaging_locked = self.total_imaging_locked - total_settling
         self.total_tasks_settled = self.total_tasks_settled + u32(1)
@@ -518,7 +494,6 @@ Respond ONLY with valid JSON:
             t.status = STATUS_SETTLED_COMPLIANT
             t.verdict = "SLA_COMPLIANT_FULL"
             t.reason = f"[APPEAL UPHELD] {app_reason}"
-            t.escrow_amount = bigint(0)
             _pay_native(t.operator, escrow_val)
             _pay_native(appellant, bond_val)
 
@@ -528,25 +503,19 @@ Respond ONLY with valid JSON:
             payout = escrow_val // bigint(2)
             refund = escrow_val - payout
             t.reason = f"[APPEAL PARTIAL] {app_reason}"
-            t.escrow_amount = bigint(0)
             _pay_native(t.operator, payout)
             _pay_native(t.client, refund)
-            # Degraded/partial result: bond forfeited to counterparty
             _pay_native(counterparty, bond_val)
 
         else:
             t.status = STATUS_SETTLED_DEFECTIVE
             t.verdict = "DEFECTIVE_CLOUD_BREACH"
             t.reason = f"[APPEAL DISMISSED] {app_reason}"
-            t.escrow_amount = bigint(0)
             _pay_native(t.client, escrow_val)
             _pay_native(counterparty, bond_val)
 
     @gl.public.write
     def finalize_settlement(self, task_id: u64) -> None:
-        """
-        Executes un-disputed payout strictly after 24 blocks cooling-off window.
-        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -592,7 +561,6 @@ Respond ONLY with valid JSON:
 
     @gl.public.write
     def cancel_or_reclaim(self, task_id: u64) -> None:
-        """Client reclaims funds if task expired unclaimed or capture deliverable stalled (>120 blocks)."""
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
