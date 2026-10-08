@@ -1,0 +1,11 @@
+{
+  "network": "studionet",
+  "chainId": 61999,
+  "chainIdHex": "0xF22F",
+  "rpcUrl": "https://studio.genlayer.com/api",
+  "contractAddress": "0x7d7aD14e9276d612E2A9a6edC0108ECb99649FaD",
+  "transactionHash": "0x2d54e81b0c0bc63d7d6e65b29758ae813217e20fed4771205926d554b312cb8c",
+  "deployerAddress": "0xF34587A45C397281Ef6BDd839d4A1de2DEe393ad",
+  "status": "5",
+  "deployedAt": "2026-10-08T07:59:20Z"
+}

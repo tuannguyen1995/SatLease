@@ -1,0 +1,11 @@
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.env.local
+__pycache__/
+*/__pycache__/
+.pytest_cache/
+artifacts/
+.vercel/
+*.pyc
