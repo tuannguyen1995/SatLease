@@ -2,7 +2,7 @@
 
 > **Track:** Space Tech / DePIN / Earth Observation / Remote Sensing SLA  
 > **Network:** GenLayer StudioNet (Chain ID: `61999` / `0xF1EF` / `0xF22F`)  
-> **Intelligent Contract Address:** [`0x23f456b88fC8e7c965d47866771C28C1FF9C7177`](https://explorer-studio.genlayer.com/address/0x23f456b88fC8e7c965d47866771C28C1FF9C7177)  
+> **Intelligent Contract Address:** [`0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7`](https://explorer-studio.genlayer.com/address/0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7)  
 > **Deployment Tx Hash:** [`0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057`](https://explorer-studio.genlayer.com/tx/0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057)  
 > **Live dApp URL:** [https://satlease.vercel.app](https://satlease.vercel.app)
 
@@ -61,7 +61,7 @@ stateDiagram-v2
 | **Chain ID** | `61999` (Hex: `0xF1EF` / `0xF22F`) |
 | **RPC Endpoint** | `https://studio.genlayer.com/api` |
 | **Block Explorer** | `https://explorer-studio.genlayer.com` |
-| **Contract Address** | `0x23f456b88fC8e7c965d47866771C28C1FF9C7177` |
+| **Contract Address** | `0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7` |
 | **Deployment Tx Hash** | `0xbe4e4521d474e91c372d7681506a658f82fc44c4a54113f43cebe3b50dd5c057` |
 | **Live Web App** | [https://satlease.vercel.app](https://satlease.vercel.app) |
 

@@ -1,7 +1,7 @@
 # 🛰️ SatLease On-Chain Lifecycle Verification & Receipts
 
 **Network:** GenLayer StudioNet (Chain ID: `61999` / `0xF1EF`)  
-**Contract Address:** `0x23f456b88fC8e7c965d47866771C28C1FF9C7177`  
+**Contract Address:** `0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7`  
 **Deployer Address:** `0xF34587A45C397281Ef6BDd839d4A1de2DEe393ad`  
 **Date of Verification:** 2026-10-08
 
@@ -12,8 +12,8 @@
 | Parameter | Value |
 |---|---|
 | **Contract Name** | SatLease (Orbital Satellite Imaging & Earth Observation SLA Escrow) |
-| **Contract Address** | `0x23f456b88fC8e7c965d47866771C28C1FF9C7177` |
-| **Explorer Link** | [https://explorer-studio.genlayer.com/address/0x23f456b88fC8e7c965d47866771C28C1FF9C7177](https://explorer-studio.genlayer.com/address/0x23f456b88fC8e7c965d47866771C28C1FF9C7177) |
+| **Contract Address** | `0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7` |
+| **Explorer Link** | [https://explorer-studio.genlayer.com/address/0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7](https://explorer-studio.genlayer.com/address/0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Action | `create_imaging_task` |
 |---|---|
-| **Transaction Hash** | `0xb58cba6837214ed1492ede2c83f0f9a2aa3ac6b01cac911bd15db9a540b29ba3` |
+| **Transaction Hash** | `0x884eb67a1194ee543e5d5901411d4490f9a9fd65aec5f08738749a0ef00a36c7` |
 | **Receipt Status** | `5` (FINALIZED) |
 | **Client Address** | `0xf34587a45c397281ef6bdd839d4a1de2dee393ad` |
 | **Target Bounding Box** | `[36.7783, -119.4179, 37.2000, -119.0000]` (California Central Valley) |
@@ -68,17 +68,17 @@
 
 | Step | Action | Tx Hash | Status |
 |---|---|---|---|
-| **Step A** | `create_imaging_task` | `0xb6d6d713a6583261652e994794ab9ca6ace694161b33e43db25ee79ecfc77efe` | `5` (FINALIZED) |
-| **Step B** | `submit_capture_deliverable` | `0xce0f9eb6c1c72f302a0e8dd4f940a0b556685884cd69f00cc08a4d0a1ba42061` | `5` (FINALIZED) |
-| **Step C** | `adjudicate_imaging_sla` | `0x61a30353d3ef8e34914f0278d2f64ae83f1bb6187c2caf7f2155b8035056b4dd` | `5` (FINALIZED) |
+| **Step A** | `create_imaging_task` | `0x5d807be19c9ce5a53697ca6bd755564dd6fd5a77b34b801ca5b7e96ab1946662` | `5` (FINALIZED) |
+| **Step B** | `submit_capture_deliverable` | `0xd0e2e11b206cb70d07067d26c22df33aefcea6aac5069ee40081ae4a3ba34184` | `5` (FINALIZED) |
+| **Step C** | `adjudicate_imaging_sla` | `0x988317e0e7c0000f13529f9d94fa1d9eb844b0b528f53efc8fb65eeba3847928` | `5` (FINALIZED) |
 
 ### On-Chain AI Remote Sensing Tribunal Ruling for Task #2:
-- **Assigned Operator:** `0x1efea75f4d869d14bbcbed30c28285ec525b8c0b`
+- **Assigned Operator:** `0x1f535115f03211c7d55ce1e13be4ddf43d0faaf0`
 - **Resulting Lifecycle Status:** `STATUS_AWAITING_PAYOUT` (2 - Active 24-Block Cooling-Off Challenge Window)
 - **AI Verdict:** `DEFECTIVE_CLOUD_BREACH`
-- **Jury Confidence:** `100%`
-- **Measured Cloud Cover:** `0%` (Max SLA: `20%`)
-- **Measured GSD Resolution:** `1 cm/px` (Min SLA: `25 cm/px`)
-- **Reasoning:** *"Telemetry data contains only smart contract source code and UI boilerplate; no actual STAC metadata or radiometric evidence for the target bounding box was provided for evaluation."*
+- **Jury Confidence:** `95%`
+- **Measured Cloud Cover:** `100%` (Max SLA: `20%`)
+- **Measured GSD Resolution:** `9999 cm/px` (Min SLA: `25 cm/px`)
+- **Reasoning:** *"Untrusted telemetry contains no actual orbital image metrics; only contract/UI text. Cloud cover and GSD cannot be verified, so deliverable is non-compliant."*
 - **Evidence Hash:** `4469ffabc2960a72...`
 
