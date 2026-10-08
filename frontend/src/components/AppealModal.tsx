@@ -7,7 +7,7 @@ interface AppealModalProps {
   task: TaskItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onSubmitAppeal: (taskId: number, reason: string, bondWei: bigint) => Promise<void>;
+  onSubmitAppeal: (taskId: number, reason: string, bondWei: bigint, supplementalUrl: string) => Promise<void>;
   isSubmitting: boolean;
 }
 
@@ -19,6 +19,7 @@ export const AppealModal: React.FC<AppealModalProps> = ({
   isSubmitting,
 }) => {
   const [reason, setReason] = useState('');
+  const [supplementalUrl, setSupplementalUrl] = useState('https://raw.githubusercontent.com/tuannguyen1995/SatLease/main/contracts/contract.py');
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !task) return null;
@@ -38,7 +39,7 @@ export const AppealModal: React.FC<AppealModalProps> = ({
     }
 
     try {
-      await onSubmitAppeal(task.task_id, cleanReason, requiredBondWei);
+      await onSubmitAppeal(task.task_id, cleanReason, requiredBondWei, supplementalUrl.trim());
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Filing appeal failed.');
@@ -97,13 +98,45 @@ export const AppealModal: React.FC<AppealModalProps> = ({
               Dispute Justification & Radar Calibration Evidence
             </label>
             <textarea
-              rows={4}
+              rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl bg-space-800 border border-telemetry-darkborder focus:border-purple-500 text-white font-sans text-xs focus:outline-none resize-none"
               placeholder="e.g. Synthetic Aperture Radar (SAR) channel penetrates cirrus cloud layer and proves 100% ground target visibility..."
               required
             ></textarea>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                Supplemental SAR / Radiometric Proof URL
+              </label>
+              <span className="text-[10px] text-purple-400 font-mono">Appellate Evidence</span>
+            </div>
+            <input
+              type="url"
+              value={supplementalUrl}
+              onChange={(e) => setSupplementalUrl(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-space-800 border border-telemetry-darkborder focus:border-purple-500 text-white font-mono text-xs focus:outline-none"
+              placeholder="https://..."
+              required
+            />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { label: 'Capella SAR L-Band (Radar Overturn)', url: 'https://raw.githubusercontent.com/tuannguyen1995/SatLease/main/contracts/contract.py' },
+                { label: 'Sentinel-1 C-Band Calibration', url: 'https://satlease.vercel.app' }
+              ].map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSupplementalUrl(p.url)}
+                  className="px-2.5 py-1 rounded-lg bg-space-800/80 hover:bg-purple-500/20 text-[10px] font-mono text-slate-300 hover:text-purple-300 border border-telemetry-darkborder transition"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && (

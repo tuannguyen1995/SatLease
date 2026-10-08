@@ -254,7 +254,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleAppeal = async (taskId: number, reason: string, bondWei: bigint) => {
+  const handleAppeal = async (taskId: number, reason: string, bondWei: bigint, supplementalUrl: string) => {
     setIsProcessing(true);
     try {
       await sendWriteTransaction('appeal_verdict', [taskId, reason], bondWei);
@@ -266,10 +266,9 @@ export const App: React.FC = () => {
   const handleAdjudicateAppeal = async (taskId: number) => {
     setIsProcessing(true);
     try {
-      // Prompt user or use default supplemental proof URL
       const suppUrl = prompt(
-        'Enter supplemental radar/atmospheric observation URL:',
-        'https://constellation-sar.io/passes/orbit_9200/radar_audit.json'
+        'Enter supplemental SAR radar or atmospheric calibration URL:',
+        'https://raw.githubusercontent.com/tuannguyen1995/SatLease/main/contracts/contract.py'
       );
       if (!suppUrl) return;
       await sendWriteTransaction('adjudicate_appeal', [taskId, suppUrl]);
