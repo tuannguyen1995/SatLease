@@ -27,6 +27,17 @@ STATUS_DISPUTED = u8(6)            # Under appellate orbital review with staked 
 STATUS_CANCELLED = u8(7)           # Expired unfulfilled and reclaimed by client
 
 
+try:
+    _BaseContractError = UserError
+except NameError:
+    _BaseContractError = getattr(gl, "UserError", Exception)
+
+
+class ContractError(_BaseContractError):
+    """Domain-specific error for SatLease protocol, safely compatible with GenVM."""
+    pass
+
+
 def _addr_str(addr: Address) -> str:
     """Safely format an Address instance into a lowercase hex string."""
     try:
@@ -43,7 +54,7 @@ def _get_sender() -> Address:
         try:
             return gl.message.sender
         except Exception:
-            raise gl.UserError("Cannot resolve sender address.")
+            raise ContractError("Cannot resolve sender address.")
 
 
 def _pay_native(recipient: Address, amount: bigint) -> None:
@@ -144,11 +155,11 @@ class Contract(gl.Contract):
         self._ensure_owner()
         escrow = bigint(gl.message.value)
         if escrow <= bigint(0):
-            raise gl.UserError("Imaging escrow deposit must be greater than 0 GEN.")
+            raise ContractError("Imaging escrow deposit must be greater than 0 GEN.")
 
         clean_bbox = str(target_bounding_box).strip()
         if len(clean_bbox) < 8:
-            raise gl.UserError("Valid target bounding box coordinate string required.")
+            raise ContractError("Valid target bounding box coordinate string required.")
 
         cloud_limit = u8(max(5, min(60, max_cloud_cover_pct)))
         resolution = u32(max(10, min(1000, min_resolution_cm)))
@@ -204,26 +215,26 @@ class Contract(gl.Contract):
     ) -> None:
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if t.status != STATUS_TASK_OPEN:
-            raise gl.UserError("Task is not open for deliverable submission.")
+            raise ContractError("Task is not open for deliverable submission.")
 
         current_time = self._get_current_timestamp()
         if current_time > t.expires_at_time:
-            raise gl.UserError("Capture deliverable deadline has expired.")
+            raise ContractError("Capture deliverable deadline has expired.")
 
         sender = _get_sender()
         if _addr_str(sender) == _addr_str(t.client):
-            raise gl.UserError("Role Violation: Client cannot deliver their own satellite imaging task.")
+            raise ContractError("Role Violation: Client cannot deliver their own satellite imaging task.")
 
         clean_meta = str(metadata_url).strip()
         clean_prev = str(sample_preview_url).strip()
         if not clean_meta.startswith("http://") and not clean_meta.startswith("https://"):
-            raise gl.UserError("Valid public metadata URL required.")
+            raise ContractError("Valid public metadata URL required.")
         if not clean_prev.startswith("http://") and not clean_prev.startswith("https://"):
-            raise gl.UserError("Valid public sample preview URL required.")
+            raise ContractError("Valid public sample preview URL required.")
 
         t.operator = sender
         t.metadata_url = clean_meta
@@ -236,11 +247,11 @@ class Contract(gl.Contract):
     def adjudicate_imaging_sla(self, task_id: u64) -> None:
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if t.status != STATUS_CAPTURED:
-            raise gl.UserError("Task is not in captured review status.")
+            raise ContractError("Task is not in captured review status.")
 
         sender = _get_sender()
         sender_str = _addr_str(sender)
@@ -249,7 +260,7 @@ class Contract(gl.Contract):
             and sender_str != _addr_str(t.operator)
             and sender_str != _addr_str(self.owner)
         ):
-            raise gl.UserError("Permission Denied: Only client, operator, or owner can trigger adjudication.")
+            raise ContractError("Permission Denied: Only client, operator, or owner can trigger adjudication.")
 
         meta_url = t.metadata_url
         prev_url = t.sample_preview_url
@@ -412,25 +423,25 @@ Respond ONLY with valid JSON without markdown fences:
         """
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if t.status != STATUS_AWAITING_PAYOUT:
-            raise gl.UserError("Can only appeal tasks in AWAITING_PAYOUT status.")
+            raise ContractError("Can only appeal tasks in AWAITING_PAYOUT status.")
 
         sender = _get_sender()
         if _addr_str(sender) != _addr_str(t.client) and _addr_str(sender) != _addr_str(t.operator):
-            raise gl.UserError("Role Violation: Only client or satellite operator can file an appeal.")
+            raise ContractError("Role Violation: Only client or satellite operator can file an appeal.")
 
         current_time = self._get_current_timestamp()
         if current_time > (t.audit_completed_time + u256(COOLING_OFF_SECONDS)):
-            raise gl.UserError(
+            raise ContractError(
                 f"Dispute cooling-off window ({COOLING_OFF_BLOCKS} blocks / {COOLING_OFF_SECONDS}s) has expired."
             )
 
         clean_evidence_url = str(supplemental_evidence_url).strip()
         if not clean_evidence_url.startswith("http://") and not clean_evidence_url.startswith("https://"):
-            raise gl.UserError("Valid public supplemental evidence URL required upon filing appeal.")
+            raise ContractError("Valid public supplemental evidence URL required upon filing appeal.")
 
         required_bond = (t.escrow_amount * bigint(10)) // bigint(100)
         if required_bond == bigint(0):
@@ -438,11 +449,11 @@ Respond ONLY with valid JSON without markdown fences:
 
         staked = bigint(gl.message.value)
         if staked < required_bond:
-            raise gl.UserError(f"Must stake at least 10% dispute bond ({int(required_bond)} wei).")
+            raise ContractError(f"Must stake at least 10% dispute bond ({int(required_bond)} wei).")
 
         clean_reason = str(dispute_reason).strip()
         if len(clean_reason) < 10:
-            raise gl.UserError("Detailed dispute justification (>=10 chars) required.")
+            raise ContractError("Detailed dispute justification (>=10 chars) required.")
 
         t.appeal_prior_verdict = t.verdict
         t.status = STATUS_DISPUTED
@@ -461,11 +472,11 @@ Respond ONLY with valid JSON without markdown fences:
         """
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if t.status != STATUS_DISPUTED:
-            raise gl.UserError("Task is not in DISPUTED status.")
+            raise ContractError("Task is not in DISPUTED status.")
 
         sender = _get_sender()
         sender_str = _addr_str(sender)
@@ -474,11 +485,11 @@ Respond ONLY with valid JSON without markdown fences:
             and sender_str != _addr_str(t.operator)
             and sender_str != _addr_str(self.owner)
         ):
-            raise gl.UserError("Permission Denied: Only stakeholders or contract owner can convene appellate chamber.")
+            raise ContractError("Permission Denied: Only stakeholders or contract owner can convene appellate chamber.")
 
         bound_url = t.supplemental_evidence_url
         if not bound_url:
-            raise gl.UserError("No bound supplemental evidence found for this appeal.")
+            raise ContractError("No bound supplemental evidence found for this appeal.")
 
         appellant = t.dispute_initiator
         prior_verdict = t.appeal_prior_verdict
@@ -653,11 +664,11 @@ Respond ONLY with valid JSON:
     def finalize_settlement(self, task_id: u64) -> None:
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if t.status != STATUS_AWAITING_PAYOUT:
-            raise gl.UserError("Task is not awaiting settlement payout.")
+            raise ContractError("Task is not awaiting settlement payout.")
 
         sender = _get_sender()
         sender_str = _addr_str(sender)
@@ -666,11 +677,11 @@ Respond ONLY with valid JSON:
             and sender_str != _addr_str(t.operator)
             and sender_str != _addr_str(self.owner)
         ):
-            raise gl.UserError("Permission Denied: Only task stakeholders can finalize payout.")
+            raise ContractError("Permission Denied: Only task stakeholders can finalize payout.")
 
         current_time = self._get_current_timestamp()
         if current_time <= (t.audit_completed_time + u256(COOLING_OFF_SECONDS)):
-            raise gl.UserError(
+            raise ContractError(
                 f"Cooling-off challenge window ({COOLING_OFF_BLOCKS} blocks / {COOLING_OFF_SECONDS}s) is still active."
             )
 
@@ -698,22 +709,22 @@ Respond ONLY with valid JSON:
     def cancel_or_reclaim(self, task_id: u64) -> None:
         self._ensure_owner()
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         if _addr_str(_get_sender()) != _addr_str(t.client):
-            raise gl.UserError("Role Violation: Only the client can cancel or reclaim imaging escrow.")
+            raise ContractError("Role Violation: Only the client can cancel or reclaim imaging escrow.")
 
         current_time = self._get_current_timestamp()
 
         if t.status == STATUS_CAPTURED:
             if current_time < (t.captured_at_time + u256(ACTIVE_DELIVERY_PROTECTION_SECONDS)):
-                raise gl.UserError("Cannot reclaim: Satellite operator actively delivering orbit pass.")
+                raise ContractError("Cannot reclaim: Satellite operator actively delivering orbit pass.")
         elif t.status == STATUS_TASK_OPEN:
             if current_time < t.expires_at_time:
-                raise gl.UserError("Cannot cancel: Task capture duration has not expired.")
+                raise ContractError("Cannot cancel: Task capture duration has not expired.")
         else:
-            raise gl.UserError("Task is already settled or disputed.")
+            raise ContractError("Task is already settled or disputed.")
 
         t.status = STATUS_CANCELLED
         t.verdict = "CANCELLED"
@@ -729,7 +740,7 @@ Respond ONLY with valid JSON:
     @gl.public.view
     def get_task(self, task_id: u64) -> str:
         if task_id not in self.tasks:
-            raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
+            raise ContractError(f"Imaging task {int(task_id)} does not exist.")
 
         t = self.tasks[task_id]
         data = {
