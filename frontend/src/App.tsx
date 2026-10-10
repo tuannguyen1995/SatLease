@@ -257,7 +257,7 @@ export const App: React.FC = () => {
   const handleAppeal = async (taskId: number, reason: string, bondWei: bigint, supplementalUrl: string) => {
     setIsProcessing(true);
     try {
-      await sendWriteTransaction('appeal_verdict', [taskId, reason], bondWei);
+      await sendWriteTransaction('appeal_verdict', [taskId, reason, supplementalUrl], bondWei);
     } finally {
       setIsProcessing(false);
     }
@@ -266,12 +266,7 @@ export const App: React.FC = () => {
   const handleAdjudicateAppeal = async (taskId: number) => {
     setIsProcessing(true);
     try {
-      const suppUrl = prompt(
-        'Enter supplemental SAR radar or atmospheric calibration URL:',
-        'https://raw.githubusercontent.com/tuannguyen1995/SatLease/main/contracts/contract.py'
-      );
-      if (!suppUrl) return;
-      await sendWriteTransaction('adjudicate_appeal', [taskId, suppUrl]);
+      await sendWriteTransaction('adjudicate_appeal', [taskId]);
     } finally {
       setIsProcessing(false);
     }

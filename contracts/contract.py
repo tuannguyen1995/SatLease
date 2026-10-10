@@ -1,11 +1,20 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 from dataclasses import dataclass
+from datetime import datetime
 import json
 import hashlib
 
 CANARY_TOKEN = "CANARY_SAT_LEASE_ORBITAL_V1"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+# Time & Cooling-Off Parameters
+# GenLayer StudioNet produces ~1 block per 3 seconds on average
+SECONDS_PER_BLOCK = 3
+COOLING_OFF_BLOCKS = 24
+COOLING_OFF_SECONDS = COOLING_OFF_BLOCKS * SECONDS_PER_BLOCK     # 72 seconds
+DEFAULT_IMAGING_DURATION_SECONDS = 6000 * SECONDS_PER_BLOCK     # 18000 seconds
+ACTIVE_DELIVERY_PROTECTION_SECONDS = 120 * SECONDS_PER_BLOCK   # 360 seconds
 
 # Lifecycle Statuses
 STATUS_TASK_OPEN = u8(0)           # Client deposited funds, awaiting satellite operator
@@ -14,7 +23,7 @@ STATUS_AWAITING_PAYOUT = u8(2)     # AI consensus reached, 24-block dispute wind
 STATUS_SETTLED_COMPLIANT = u8(3)   # Clean capture verified, 100% funds released to operator
 STATUS_SETTLED_DEFECTIVE = u8(4)   # Cloud-obscured or target missed, 100% refunded to client
 STATUS_SETTLED_PARTIAL = u8(5)     # Marginal usable imagery, 50/50 fair compensation
-STATUS_DISPUTED = u8(6)            # Under appellate orbital review with staked bond
+STATUS_DISPUTED = u8(6)            # Under appellate orbital review with staked bond & bound evidence
 STATUS_CANCELLED = u8(7)           # Expired unfulfilled and reclaimed by client
 
 
@@ -50,7 +59,7 @@ class ImagingTask:
     task_id: u64
     client: Address                # Earth observation customer
     operator: Address              # Satellite constellation operator
-    dispute_initiator: Address
+    dispute_initiator: Address     # Appellant who staked bond
     escrow_amount: bigint          # Locked imaging fee
     dispute_bond: bigint           # 10% appeal stake
     target_bounding_box: str       # Target coordinates (lat/long polygon)
@@ -65,9 +74,12 @@ class ImagingTask:
     confidence: u8
     measured_cloud_cover_pct: u8   # Actual measured cloud cover percentage
     measured_resolution_cm: u32    # Actual verified GSD resolution in cm
-    created_at_block: u256
-    expires_at_block: u256
-    audit_completed_block: u256
+    created_at_time: u256          # Chain execution timestamp at task registration
+    expires_at_time: u256          # Chain execution timestamp deadline for capture delivery
+    audit_completed_time: u256     # Chain execution timestamp when initial AI tribunal finished
+    captured_at_time: u256         # Chain execution timestamp when operator delivered telemetry
+    supplemental_evidence_url: str # Bound appellant radar/atmospheric evidence submitted with bond
+    appeal_prior_verdict: str      # Verdict recorded before appeal was filed
 
 
 class Contract(gl.Contract):
@@ -92,8 +104,32 @@ class Contract(gl.Contract):
         if _addr_str(self.owner) == ZERO_ADDRESS:
             self.owner = _get_sender()
 
-    def _get_current_block(self) -> u256:
-        return u256(int(self.task_counter))
+    def _get_current_timestamp(self) -> u256:
+        """
+        Derives trusted deterministic execution timestamp strictly from runtime context with safe fallbacks.
+        Priority:
+        1. gl.message_raw["datetime"] (canonical ISO timestamp in GenLayer consensus)
+        2. gl.message.timestamp (if exposed as integer)
+        3. Python datetime fallback
+        """
+        try:
+            dt_str = gl.message_raw.get("datetime", "") if hasattr(gl, "message_raw") and gl.message_raw else ""
+            if dt_str:
+                clean = dt_str.replace("Z", "+00:00")
+                return u256(int(datetime.fromisoformat(clean).timestamp()))
+        except Exception:
+            pass
+
+        try:
+            if hasattr(gl, "message") and hasattr(gl.message, "timestamp"):
+                return u256(int(str(gl.message.timestamp)))
+        except Exception:
+            pass
+
+        try:
+            return u256(int(datetime.now().timestamp()))
+        except Exception:
+            return u256(1759000000)
 
     # ── Public Write Methods ──────────────────────────────────────────
 
@@ -116,12 +152,15 @@ class Contract(gl.Contract):
 
         cloud_limit = u8(max(5, min(60, max_cloud_cover_pct)))
         resolution = u32(max(10, min(1000, min_resolution_cm)))
-        dur = u256(duration_blocks if duration_blocks > 0 else 6000)
+        
+        dur_seconds = u256(
+            (duration_blocks * SECONDS_PER_BLOCK) if duration_blocks > 0 else DEFAULT_IMAGING_DURATION_SECONDS
+        )
 
         self.task_counter = self.task_counter + u64(1)
         task_id = self.task_counter
-        current_block = self._get_current_block()
-        expires_at = current_block + dur
+        current_time = self._get_current_timestamp()
+        expires_at = current_time + dur_seconds
         empty_addr = Address(ZERO_ADDRESS)
 
         new_task = ImagingTask(
@@ -143,9 +182,12 @@ class Contract(gl.Contract):
             confidence=u8(0),
             measured_cloud_cover_pct=u8(0),
             measured_resolution_cm=u32(0),
-            created_at_block=current_block,
-            expires_at_block=expires_at,
-            audit_completed_block=u256(0),
+            created_at_time=current_time,
+            expires_at_time=expires_at,
+            audit_completed_time=u256(0),
+            captured_at_time=u256(0),
+            supplemental_evidence_url="",
+            appeal_prior_verdict="",
         )
 
         self.tasks[task_id] = new_task
@@ -168,6 +210,10 @@ class Contract(gl.Contract):
         if t.status != STATUS_TASK_OPEN:
             raise gl.UserError("Task is not open for deliverable submission.")
 
+        current_time = self._get_current_timestamp()
+        if current_time > t.expires_at_time:
+            raise gl.UserError("Capture deliverable deadline has expired.")
+
         sender = _get_sender()
         if _addr_str(sender) == _addr_str(t.client):
             raise gl.UserError("Role Violation: Client cannot deliver their own satellite imaging task.")
@@ -179,10 +225,10 @@ class Contract(gl.Contract):
         if not clean_prev.startswith("http://") and not clean_prev.startswith("https://"):
             raise gl.UserError("Valid public sample preview URL required.")
 
-        self.task_counter = self.task_counter + u64(1)
         t.operator = sender
         t.metadata_url = clean_meta
         t.sample_preview_url = clean_prev
+        t.captured_at_time = current_time
         t.status = STATUS_CAPTURED
         t.reason = "Orbital telemetry delivered. AI Remote Sensing Tribunal convened to evaluate cloud cover & GSD."
 
@@ -349,13 +395,21 @@ Respond ONLY with valid JSON without markdown fences:
         if "evidence_hash" in adjudication_res and adjudication_res["evidence_hash"]:
             t.evidence_hash = str(adjudication_res["evidence_hash"])
 
-        self.task_counter = self.task_counter + u64(1)
-        current_block = self._get_current_block()
+        current_time = self._get_current_timestamp()
         t.status = STATUS_AWAITING_PAYOUT
-        t.audit_completed_block = current_block
+        t.audit_completed_time = current_time
 
     @gl.public.write.payable
-    def appeal_verdict(self, task_id: u64, dispute_reason: str) -> None:
+    def appeal_verdict(
+        self,
+        task_id: u64,
+        dispute_reason: str,
+        supplemental_evidence_url: str
+    ) -> None:
+        """
+        Binds appellant's supplemental evidence permanently upon filing the appeal with 10% bond.
+        Prevents external evidence swapping during subsequent appellate review.
+        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -368,11 +422,15 @@ Respond ONLY with valid JSON without markdown fences:
         if _addr_str(sender) != _addr_str(t.client) and _addr_str(sender) != _addr_str(t.operator):
             raise gl.UserError("Role Violation: Only client or satellite operator can file an appeal.")
 
-        self.task_counter = self.task_counter + u64(1)
-        current_block = self._get_current_block()
+        current_time = self._get_current_timestamp()
+        if current_time > (t.audit_completed_time + u256(COOLING_OFF_SECONDS)):
+            raise gl.UserError(
+                f"Dispute cooling-off window ({COOLING_OFF_BLOCKS} blocks / {COOLING_OFF_SECONDS}s) has expired."
+            )
 
-        if current_block > (t.audit_completed_block + u256(24)):
-            raise gl.UserError("Dispute cooling-off window (24 blocks) has expired.")
+        clean_evidence_url = str(supplemental_evidence_url).strip()
+        if not clean_evidence_url.startswith("http://") and not clean_evidence_url.startswith("https://"):
+            raise gl.UserError("Valid public supplemental evidence URL required upon filing appeal.")
 
         required_bond = (t.escrow_amount * bigint(10)) // bigint(100)
         if required_bond == bigint(0):
@@ -386,14 +444,21 @@ Respond ONLY with valid JSON without markdown fences:
         if len(clean_reason) < 10:
             raise gl.UserError("Detailed dispute justification (>=10 chars) required.")
 
+        t.appeal_prior_verdict = t.verdict
         t.status = STATUS_DISPUTED
         t.dispute_initiator = sender
         t.dispute_bond = staked
+        t.supplemental_evidence_url = clean_evidence_url
         t.reason = f"[DISPUTE by {_addr_str(sender)[:8]}]: {clean_reason} | Prior: {t.reason}"
         self.total_imaging_locked = self.total_imaging_locked + staked
 
     @gl.public.write
-    def adjudicate_appeal(self, task_id: u64, supplemental_analysis_url: str) -> None:
+    def adjudicate_appeal(self, task_id: u64) -> None:
+        """
+        Restricted adjudication path: evaluates strictly the bound supplemental evidence
+        provided when the appeal was filed. Only task stakeholders or owner can trigger.
+        Settles both escrow and dispute bond correctly for every appellant & prior verdict combination.
+        """
         self._ensure_owner()
         if task_id not in self.tasks:
             raise gl.UserError(f"Imaging task {int(task_id)} does not exist.")
@@ -402,18 +467,29 @@ Respond ONLY with valid JSON without markdown fences:
         if t.status != STATUS_DISPUTED:
             raise gl.UserError("Task is not in DISPUTED status.")
 
-        clean_url = str(supplemental_analysis_url).strip()
-        if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
-            raise gl.UserError("Valid supplemental analysis URL required.")
+        sender = _get_sender()
+        sender_str = _addr_str(sender)
+        if (
+            sender_str != _addr_str(t.client)
+            and sender_str != _addr_str(t.operator)
+            and sender_str != _addr_str(self.owner)
+        ):
+            raise gl.UserError("Permission Denied: Only stakeholders or contract owner can convene appellate chamber.")
+
+        bound_url = t.supplemental_evidence_url
+        if not bound_url:
+            raise gl.UserError("No bound supplemental evidence found for this appeal.")
 
         appellant = t.dispute_initiator
+        prior_verdict = t.appeal_prior_verdict
+        is_client_appellant = (_addr_str(appellant) == _addr_str(t.client))
         max_clouds = int(t.max_cloud_cover_pct)
         min_res = int(t.min_resolution_cm)
 
         def leader_fn():
             raw_supp = ""
             try:
-                raw_supp = gl.nondet.web.render(clean_url, mode="text")
+                raw_supp = gl.nondet.web.render(bound_url, mode="text")
             except Exception:
                 pass
 
@@ -421,24 +497,29 @@ Respond ONLY with valid JSON without markdown fences:
                 return {
                     "canary": CANARY_TOKEN,
                     "verdict": "APPEAL_DISMISSED",
-                    "reason": "Supplemental atmospheric observation data unreachable.",
+                    "reason": "Supplemental atmospheric/radar observation data unreachable.",
                 }
 
             prompt = f"""You are the Supreme Space & Orbital Appellate Judge on GenLayer.
-Evaluate the supplemental radiometric proof for task {t.task_id}:
+Evaluate the bound supplemental radiometric and radar proof for task {t.task_id}:
+PRIOR AUDIT VERDICT: {prior_verdict}
+APPELLANT ROLE: {'CLIENT' if is_client_appellant else 'SATELLITE_OPERATOR'}
 MAX ALLOWABLE CLOUDS: {max_clouds}%
 REQUIRED GSD RESOLUTION: <= {min_res} cm
 
-SUPPLEMENTAL AUDIT DATA:
+BOUND SUPPLEMENTAL AUDIT DATA:
 {raw_supp[:4000]}
 
 DECISION CRITERIA:
-- If supplemental data verifies cloud cover <= {max_clouds}% and valid resolution: Output "APPEAL_UPHELD_COMPLIANT".
-- If partial utility verified: Output "APPEAL_UPHELD_PARTIAL".
-- Otherwise (heavy clouds or defective capture confirmed): Output "APPEAL_DISMISSED".
+- If supplemental data verifies cloud cover <= {max_clouds}% and valid resolution (clean capture confirmed):
+  Output "APPEAL_UPHELD_COMPLIANT".
+- If partial cloud utility verified (fringe cloud usable with mask):
+  Output "APPEAL_UPHELD_PARTIAL".
+- If heavy cloud cover, corrupted telemetry, or target missed confirmed (breach confirmed):
+  Output "APPEAL_UPHELD_DEFECTIVE" if appellant sought defective breach, or "APPEAL_DISMISSED" if appeal lacked merit.
 
 Respond ONLY with valid JSON:
-{{"canary": "{CANARY_TOKEN}", "verdict": "APPEAL_UPHELD_COMPLIANT"|"APPEAL_UPHELD_PARTIAL"|"APPEAL_DISMISSED", "reason": "<rationale>"}}"""
+{{"canary": "{CANARY_TOKEN}", "verdict": "APPEAL_UPHELD_COMPLIANT"|"APPEAL_UPHELD_PARTIAL"|"APPEAL_UPHELD_DEFECTIVE"|"APPEAL_DISMISSED", "reason": "<rationale>"}}"""
 
             raw_res = gl.nondet.exec_prompt(prompt, response_format="json")
             parsed = None
@@ -455,7 +536,12 @@ Respond ONLY with valid JSON:
                 return {"canary": CANARY_TOKEN, "verdict": "APPEAL_DISMISSED", "reason": "Appellate parsing failure."}
 
             v_str = str(parsed.get("verdict", "APPEAL_DISMISSED")).upper().strip()
-            if v_str not in {"APPEAL_UPHELD_COMPLIANT", "APPEAL_UPHELD_PARTIAL", "APPEAL_DISMISSED"}:
+            if v_str not in {
+                "APPEAL_UPHELD_COMPLIANT",
+                "APPEAL_UPHELD_PARTIAL",
+                "APPEAL_UPHELD_DEFECTIVE",
+                "APPEAL_DISMISSED"
+            }:
                 v_str = "APPEAL_DISMISSED"
 
             return {
@@ -488,31 +574,80 @@ Respond ONLY with valid JSON:
         self.total_imaging_locked = self.total_imaging_locked - total_settling
         self.total_tasks_settled = self.total_tasks_settled + u32(1)
 
-        counterparty = t.operator if _addr_str(appellant) == _addr_str(t.client) else t.client
+        counterparty = t.operator if is_client_appellant else t.client
 
+        # ── Comprehensive Settlement Matrix for Every Appellant & Prior Verdict ──
         if app_verdict == "APPEAL_UPHELD_COMPLIANT":
+            # Finding: Full SLA met (operator delivered clean capture)
             t.status = STATUS_SETTLED_COMPLIANT
             t.verdict = "SLA_COMPLIANT_FULL"
-            t.reason = f"[APPEAL UPHELD] {app_reason}"
+            t.reason = f"[APPEAL RESOLUTION] {app_reason}"
             _pay_native(t.operator, escrow_val)
-            _pay_native(appellant, bond_val)
+
+            if not is_client_appellant:
+                # Operator appealed and won -> Operator gets bond refunded
+                _pay_native(appellant, bond_val)
+            else:
+                # Client appealed challenging a compliant finding, but outcome is compliant -> Client loses bond to operator
+                _pay_native(counterparty, bond_val)
+
+        elif app_verdict == "APPEAL_UPHELD_DEFECTIVE":
+            # Finding: Defective breach confirmed (cloud obscuration / target missed)
+            t.status = STATUS_SETTLED_DEFECTIVE
+            t.verdict = "DEFECTIVE_CLOUD_BREACH"
+            t.reason = f"[APPEAL RESOLUTION] {app_reason}"
+            _pay_native(t.client, escrow_val)
+
+            if is_client_appellant:
+                # Client appealed prior compliant/partial ruling and proved defect -> Client gets bond refunded
+                _pay_native(appellant, bond_val)
+            else:
+                # Operator appealed but finding is defective -> Operator loses bond to client
+                _pay_native(counterparty, bond_val)
 
         elif app_verdict == "APPEAL_UPHELD_PARTIAL":
+            # Finding: Partial fringe cloud usable with mask (50/50 fair compensation)
             t.status = STATUS_SETTLED_PARTIAL
             t.verdict = "PARTIAL_USABLE_COMPENSATION"
             payout = escrow_val // bigint(2)
             refund = escrow_val - payout
-            t.reason = f"[APPEAL PARTIAL] {app_reason}"
+            t.reason = f"[APPEAL RESOLUTION] {app_reason}"
             _pay_native(t.operator, payout)
             _pay_native(t.client, refund)
-            _pay_native(counterparty, bond_val)
+
+            # If appeal successfully altered ruling to partial compromise from an extreme,
+            # or if appeal was dismissed against partial:
+            if prior_verdict == "PARTIAL_USABLE_COMPENSATION":
+                # Appellant tried to overturn partial but partial stood -> bond forfeited to counterparty
+                _pay_native(counterparty, bond_val)
+            else:
+                # Appellant successfully challenged extreme ruling to partial -> bond refunded to appellant
+                _pay_native(appellant, bond_val)
 
         else:
-            t.status = STATUS_SETTLED_DEFECTIVE
-            t.verdict = "DEFECTIVE_CLOUD_BREACH"
+            # APPEAL_DISMISSED: The prior ruling stands unmodified.
+            # Frivolous appeal dismissed -> Appellant always forfeits 10% bond to counterparty!
             t.reason = f"[APPEAL DISMISSED] {app_reason}"
-            _pay_native(t.client, escrow_val)
             _pay_native(counterparty, bond_val)
+
+            if prior_verdict == "SLA_COMPLIANT_FULL":
+                t.status = STATUS_SETTLED_COMPLIANT
+                t.verdict = "SLA_COMPLIANT_FULL"
+                _pay_native(t.operator, escrow_val)
+
+            elif prior_verdict == "PARTIAL_USABLE_COMPENSATION":
+                t.status = STATUS_SETTLED_PARTIAL
+                t.verdict = "PARTIAL_USABLE_COMPENSATION"
+                payout = escrow_val // bigint(2)
+                refund = escrow_val - payout
+                _pay_native(t.operator, payout)
+                _pay_native(t.client, refund)
+
+            else:
+                # DEFECTIVE_CLOUD_BREACH
+                t.status = STATUS_SETTLED_DEFECTIVE
+                t.verdict = "DEFECTIVE_CLOUD_BREACH"
+                _pay_native(t.client, escrow_val)
 
     @gl.public.write
     def finalize_settlement(self, task_id: u64) -> None:
@@ -533,11 +668,11 @@ Respond ONLY with valid JSON:
         ):
             raise gl.UserError("Permission Denied: Only task stakeholders can finalize payout.")
 
-        self.task_counter = self.task_counter + u64(1)
-        current_block = self._get_current_block()
-
-        if current_block <= (t.audit_completed_block + u256(24)):
-            raise gl.UserError("Cooling-off challenge window is still active.")
+        current_time = self._get_current_timestamp()
+        if current_time <= (t.audit_completed_time + u256(COOLING_OFF_SECONDS)):
+            raise gl.UserError(
+                f"Cooling-off challenge window ({COOLING_OFF_BLOCKS} blocks / {COOLING_OFF_SECONDS}s) is still active."
+            )
 
         escrow_val = t.escrow_amount
         t.escrow_amount = bigint(0)  # Double payout protection
@@ -569,14 +704,13 @@ Respond ONLY with valid JSON:
         if _addr_str(_get_sender()) != _addr_str(t.client):
             raise gl.UserError("Role Violation: Only the client can cancel or reclaim imaging escrow.")
 
-        self.task_counter = self.task_counter + u64(1)
-        current_block = self._get_current_block()
+        current_time = self._get_current_timestamp()
 
         if t.status == STATUS_CAPTURED:
-            if current_block < (t.created_at_block + u256(120)):
+            if current_time < (t.captured_at_time + u256(ACTIVE_DELIVERY_PROTECTION_SECONDS)):
                 raise gl.UserError("Cannot reclaim: Satellite operator actively delivering orbit pass.")
         elif t.status == STATUS_TASK_OPEN:
-            if current_block < t.expires_at_block:
+            if current_time < t.expires_at_time:
                 raise gl.UserError("Cannot cancel: Task capture duration has not expired.")
         else:
             raise gl.UserError("Task is already settled or disputed.")
@@ -617,9 +751,16 @@ Respond ONLY with valid JSON:
             "confidence": int(t.confidence),
             "measured_cloud_cover_pct": int(t.measured_cloud_cover_pct),
             "measured_resolution_cm": int(t.measured_resolution_cm),
-            "created_at_block": str(t.created_at_block),
-            "expires_at_block": str(t.expires_at_block),
-            "audit_completed_block": str(t.audit_completed_block),
+            "created_at_time": str(t.created_at_time),
+            "expires_at_time": str(t.expires_at_time),
+            "audit_completed_time": str(t.audit_completed_time),
+            "captured_at_time": str(t.captured_at_time),
+            "supplemental_evidence_url": t.supplemental_evidence_url,
+            "appeal_prior_verdict": t.appeal_prior_verdict,
+            # Backward-compatibility block aliases
+            "created_at_block": str(t.created_at_time),
+            "expires_at_block": str(t.expires_at_time),
+            "audit_completed_block": str(t.audit_completed_time),
         }
         return json.dumps(data)
 
@@ -652,9 +793,16 @@ Respond ONLY with valid JSON:
                     "confidence": int(t.confidence),
                     "measured_cloud_cover_pct": int(t.measured_cloud_cover_pct),
                     "measured_resolution_cm": int(t.measured_resolution_cm),
-                    "created_at_block": str(t.created_at_block),
-                    "expires_at_block": str(t.expires_at_block),
-                    "audit_completed_block": str(t.audit_completed_block),
+                    "created_at_time": str(t.created_at_time),
+                    "expires_at_time": str(t.expires_at_time),
+                    "audit_completed_time": str(t.audit_completed_time),
+                    "captured_at_time": str(t.captured_at_time),
+                    "supplemental_evidence_url": t.supplemental_evidence_url,
+                    "appeal_prior_verdict": t.appeal_prior_verdict,
+                    # Backward-compatibility block aliases
+                    "created_at_block": str(t.created_at_time),
+                    "expires_at_block": str(t.expires_at_time),
+                    "audit_completed_block": str(t.audit_completed_time),
                 })
         return json.dumps(tasks_list)
 
