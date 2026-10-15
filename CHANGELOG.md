@@ -5,6 +5,14 @@ All notable changes to the **SatLease** protocol and application are documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-10
+### Fixed & Hardened (Steward Review Requirements)
+- **Immutable Deterministic Chain Timestamps:** Replaced mutable task counter with `_get_current_timestamp()` extracting from `gl.message_raw["datetime"]` or `gl.message.timestamp`. Deadlines are now strictly tied to chain time.
+- **Bound Supplemental Evidence:** Appellant's `supplemental_evidence_url` is permanently bound into task storage at appeal filing. `adjudicate_appeal` is strictly restricted to evaluate that bound evidence.
+- **Comprehensive Solvency Settlement Matrix:** Implemented exhaustive settlement matrix covering every combination of appellant (`Client` vs `Operator`) and prior verdict (`SLA_COMPLIANT_FULL`, `PARTIAL_USABLE_COMPENSATION`, `DEFECTIVE_CLOUD_BREACH`), preserving escrow & bond solvency to the exact wei.
+- **Resilient GenVM Error Hierarchy:** Implemented `ContractError` dynamically inheriting from GenVM `UserError` to completely prevent `AttributeError` across any execution environment while maintaining canonical transaction revert semantics.
+- **Expanded Pytest Suite (13 Tests):** Added focused tests proving cooling-off and expiry cannot be advanced by task creation, and that dismissed or upheld appeals preserve escrow and bond outcomes.
+
 ## [1.2.4] - 2026-10-08
 ### Added & Verified (Production Testnet Release)
 - **Deployed Contract to GenLayer StudioNet:** Live contract deployed at [`0x7d7aD14e9276d612E2A9a6edC0108ECb99649FaD`](https://explorer-studio.genlayer.com/address/0x7d7aD14e9276d612E2A9a6edC0108ECb99649FaD) (Tx Hash: `0x2d54e81b0c0bc63d7d6e65b29758ae813217e20fed4771205926d554b312cb8c`).
