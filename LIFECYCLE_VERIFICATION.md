@@ -1,7 +1,7 @@
 # 🛰️ SatLease On-Chain Lifecycle Verification & Receipts
 
 **Network:** GenLayer StudioNet (Chain ID: `61999` / `0xF1EF`)  
-**Contract Address:** `0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7`  
+**Contract Address:** `0xBcAf09614d74a700B74A627B563B7E1251D0F057`  
 **Deployer Address:** `0xF34587A45C397281Ef6BDd839d4A1de2DEe393ad`  
 **Date of Verification:** 2026-10-08
 
@@ -12,8 +12,8 @@
 | Parameter | Value |
 |---|---|
 | **Contract Name** | SatLease (Orbital Satellite Imaging & Earth Observation SLA Escrow) |
-| **Contract Address** | `0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7` |
-| **Explorer Link** | [https://explorer-studio.genlayer.com/address/0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7](https://explorer-studio.genlayer.com/address/0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7) |
+| **Contract Address** | `0xBcAf09614d74a700B74A627B563B7E1251D0F057` |
+| **Explorer Link** | [https://explorer-studio.genlayer.com/address/0xBcAf09614d74a700B74A627B563B7E1251D0F057](https://explorer-studio.genlayer.com/address/0xBcAf09614d74a700B74A627B563B7E1251D0F057) |
 
 ---
 

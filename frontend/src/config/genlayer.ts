@@ -1,7 +1,7 @@
 import { defineChain } from 'viem';
 
 // Live Deployed Contract on GenLayer Studionet
-export const DEFAULT_CONTRACT_ADDRESS = "0xA674dD8b7Ba836cae69b4D4c42113a3CEECB8cC7";
+export const DEFAULT_CONTRACT_ADDRESS = "0xBcAf09614d74a700B74A627B563B7E1251D0F057";
 export const CONTRACT_ADDRESS = (((import.meta as any)?.env?.VITE_CONTRACT_ADDRESS as string) || DEFAULT_CONTRACT_ADDRESS) as `0x${string}`;
 
 // Studionet Chain Definitions
