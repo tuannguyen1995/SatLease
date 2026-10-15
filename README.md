@@ -69,7 +69,7 @@ stateDiagram-v2
 
 ## 🧪 IV. Pytest Test Suite Coverage
 
-The protocol ships with 10 comprehensive unit and integration tests passing with 100% coverage via `pytest` and `gltest`:
+The protocol ships with 13 comprehensive unit and integration tests passing with 100% coverage via `pytest` and `gltest`:
 
 ```bash
 $ pytest tests/test_satlease.py
@@ -77,11 +77,11 @@ $ pytest tests/test_satlease.py
 platform win32 -- Python 3.13.12, pytest-9.1.1, pluggy-1.6.0
 rootdir: C:\Users\Admin\Documents\genlayer\SatLease
 plugins: anyio-4.14.2, genlayer-test-0.29.2
-collected 10 items
+collected 13 items
 
-tests\test_satlease.py ..........                                        [100%]
+tests\test_satlease.py .............                                     [100%]
 
-============================= 10 passed in 1.57s ==============================
+============================= 13 passed in 1.88s ==============================
 ```
 
 ### Tested Scenarios:
@@ -93,8 +93,11 @@ tests\test_satlease.py ..........                                        [100%]
 6. `test_adjudicate_partial_usable_compensation`: Peripheral cirrus fringe 22% $\rightarrow$ `PARTIAL_USABLE_COMPENSATION` (50/50 fair split).
 7. `test_appeal_and_settlement_with_radar_overturn`: Operator stakes 10% bond; supplemental SAR radar proof overturns ruling to compliant $\rightarrow$ bond refunded.
 8. `test_appeal_dismissed_forfeits_bond`: Frivolous appeal dismissed $\rightarrow$ bond forfeited to client.
-9. `test_finalize_settlement_after_cooling_off`: Enforces 24-block dispute window; releases payout after expiry.
-10. `test_cancel_or_reclaim_lifecycle`: Client reclaims unfulfilled task after duration expires.
+9. `test_cooling_off_cannot_be_advanced_by_task_creation`: Proves cooling-off dispute window is deterministic via chain timestamp and immune to manipulation or task counter spoofing.
+10. `test_expiry_cannot_be_advanced_by_task_creation`: Proves task cancellation/expiry relies strictly on chain timestamps and cannot be advanced by creating tasks.
+11. `test_client_appeals_compliant_verdict_and_wins`: Validates client appeal against compliant verdict; overturned to defective $\rightarrow$ 100% escrow refunded + bond returned.
+12. `test_client_appeals_compliant_verdict_and_dismissed`: Validates client frivolous appeal against compliant verdict dismissed $\rightarrow$ operator receives escrow + forfeited bond.
+13. `test_appeal_reaches_partial_compromise_split`: Validates compromised appellate verdict $\rightarrow$ 50/50 escrow split and bond returned to appellant.
 
 ---
 
